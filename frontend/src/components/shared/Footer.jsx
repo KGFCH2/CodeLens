@@ -7,7 +7,7 @@ export default function Footer() {
     <footer className="w-full bg-white border-t-4 border-black flex-shrink-0">
 
       {/* ───── Top Section ───── */}
-      <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12 pt-16 pb-12">
+      <div className="max-w-350 mx-auto px-6 sm:px-8 lg:px-12 pt-16 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-12 xl:gap-8">
 
           {/* ── Brand ── */}
@@ -201,7 +201,7 @@ export default function Footer() {
 
       {/* ───── Bottom Bar ───── */}
       <div className="border-t-4 border-black">
-        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="max-w-350 mx-auto px-6 sm:px-8 lg:px-12 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <p className="text-xs font-black uppercase tracking-[0.15em] text-black">
             © {year} CodeLens · All Rights Reserved · Open Source under MIT
           </p>
