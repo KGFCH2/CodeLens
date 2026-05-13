@@ -13,13 +13,18 @@ import {
 } from "./validation.js";
 import AuthController from "./controller.js";
 import authMiddleware from "../../middlewares/authMiddleware.js";
-import { createRateLimiter } from "../../middlewares/rateLimit.js";
+import rateLimit from "express-rate-limit";
 
 const router = Router();
-const githubConnectRateLimit = createRateLimiter({
+const githubConnectRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
-  message: "Too many GitHub connect attempts. Please try again shortly."
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many GitHub connect attempts. Please try again shortly."
+  }
 });
 
 router.post("/register", validate(registerSchema), AuthController.register);
