@@ -25,7 +25,7 @@ body:
     attributes:
       label: Documentation issue summary
       description: A short summary of the documentation problem or opportunity.
-      placeholder: Example: README setup steps are missing the backend environment variables
+      placeholder: "Example: README setup steps are missing the backend environment variables"
     validations:
       required: true
 

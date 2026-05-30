@@ -25,7 +25,7 @@ body:
     attributes:
       label: Bug summary
       description: A short, clear description of the bug.
-      placeholder: Example: Search results stay empty after submitting a valid query
+      placeholder: "Example: Search results stay empty after submitting a valid query"
     validations:
       required: true
 
