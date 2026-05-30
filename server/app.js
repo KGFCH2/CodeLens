@@ -13,7 +13,7 @@ const app = express();
 const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.CLIENT_URI,
-  "http://localhost:5173"
+  ...(process.env.NODE_ENV !== "production" ? ["http://localhost:5173"] : [])
 ].filter(Boolean);
 
 const corsOptions = {

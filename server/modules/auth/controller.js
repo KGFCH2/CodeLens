@@ -3,6 +3,7 @@ import ApiError from "../../utils/ApiError.js";
 import AuthService from "./service.js";
 import { setAuthCookies, clearAuthCookies, verifyRefreshToken, generateAccessToken, generateRefreshToken } from "../../utils/tokenHelper.js";
 import User from "../../models/User.js";
+import bcrypt from "bcryptjs";
 
 class AuthController {
   // ── Email Auth ───────────────────────────────────────────────────────────────
@@ -19,6 +20,8 @@ class AuthController {
   static async verifyOtp(req, res, next) {
     try {
       const result = await AuthService.verifyOtp(req.body);
+      // Store hashed refresh token for revocation support
+      await AuthController.#persistRefreshToken(result.user.id, result.refreshToken);
       // Set HttpOnly cookies — no token in response body
       setAuthCookies(res, result.accessToken, result.refreshToken);
       res.status(200).json(ApiResponse.success(result.message, { user: result.user }));
@@ -30,6 +33,8 @@ class AuthController {
   static async login(req, res, next) {
     try {
       const result = await AuthService.login(req.body);
+      // Store hashed refresh token for revocation support
+      await AuthController.#persistRefreshToken(result.user.id, result.refreshToken);
       // Set HttpOnly cookies — no token in response body
       setAuthCookies(res, result.accessToken, result.refreshToken);
       res.status(200).json(ApiResponse.success(result.message, { user: result.user }));
@@ -105,20 +110,30 @@ class AuthController {
 
   /**
    * POST /api/auth/logout
-   * Clears auth cookies server-side.
+   * Clears auth cookies and invalidates the refresh token server-side.
+   * Protected by authMiddleware (best-effort — even if auth fails, cookies are cleared).
    */
   static async logout(req, res, next) {
     try {
+      // Invalidate the stored refresh token hash so the token can't be reused
+      // even if an attacker captured it from a cookie jar or network sniff.
+      if (req.user?._id) {
+        await User.findByIdAndUpdate(req.user._id, {
+          $unset: { "security.refreshTokenHash": "" }
+        });
+      }
       clearAuthCookies(res);
       res.status(200).json(ApiResponse.success("Logged out successfully"));
     } catch (error) {
+      // Even if DB update fails, we must still clear the cookies — best-effort.
+      clearAuthCookies(res);
       next(error instanceof ApiError ? error : new ApiError(500, error.message));
     }
   }
 
   /**
    * POST /api/auth/refresh
-   * Silently issues a new access token from a valid refresh token.
+   * Validates the refresh token against the DB record, then rotates both tokens.
    */
   static async refresh(req, res, next) {
     try {
@@ -130,21 +145,34 @@ class AuthController {
       const decoded = verifyRefreshToken(refreshToken);
       const userId = decoded.userId || decoded.id || decoded._id;
 
-      const user = await User.findById(userId).select("-password");
+      // Fetch the user including the stored hash (select: false field)
+      const user = await User.findById(userId).select("+security.refreshTokenHash");
       if (!user) {
         throw new ApiError(401, "User not found.");
       }
 
-      const newAccessToken = generateAccessToken({
-        userId: user._id,
-        email: user.email,
-        role: user.role
-      });
-      const newRefreshToken = generateRefreshToken({
-        userId: user._id,
-        email: user.email,
-        role: user.role
-      });
+      // Validate the incoming token against our stored hash — this is the
+      // revocation check. If the hashes don't match (e.g. after logout or
+      // token theft detection), the session is invalid.
+      const storedHash = user.security?.refreshTokenHash;
+      if (!storedHash) {
+        throw new ApiError(401, "Session has been revoked. Please log in again.");
+      }
+      const isValid = await bcrypt.compare(refreshToken, storedHash);
+      if (!isValid) {
+        // The token presented doesn't match — possible theft; clear everything.
+        await User.findByIdAndUpdate(userId, { $unset: { "security.refreshTokenHash": "" } });
+        clearAuthCookies(res);
+        throw new ApiError(401, "Invalid session. Please log in again.");
+      }
+
+      // Issue rotated token pair
+      const tokenPayload = { userId: user._id, email: user.email, role: user.role };
+      const newAccessToken = generateAccessToken(tokenPayload);
+      const newRefreshToken = generateRefreshToken(tokenPayload);
+
+      // Persist new refresh token hash (rotation invalidates the old one)
+      await AuthController.#persistRefreshToken(user._id, newRefreshToken);
 
       setAuthCookies(res, newAccessToken, newRefreshToken);
       res.status(200).json(ApiResponse.success("Token refreshed"));
@@ -210,6 +238,8 @@ class AuthController {
       const result = await AuthService.handleGithubCallback({ code, state });
 
       if (result.mode === "login") {
+        // Store hashed refresh token for revocation support
+        await AuthController.#persistRefreshToken(result.user.id, result.refreshToken);
         // Set HttpOnly auth cookies before redirecting the browser
         setAuthCookies(res, result.accessToken, result.refreshToken);
       }
@@ -225,6 +255,23 @@ class AuthController {
       );
       return res.redirect(fallbackErrorRedirect.toString());
     }
+  }
+
+  // ── Private Helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Hashes the refresh token and stores it on the user document.
+   * Low bcrypt cost (4) is intentional — tokens are already long random strings,
+   * and we need this to be fast since it's called on every login.
+   *
+   * @param {string|ObjectId} userId
+   * @param {string} refreshToken - The raw refresh token JWT
+   */
+  static async #persistRefreshToken(userId, refreshToken) {
+    const hash = await bcrypt.hash(refreshToken, 4);
+    await User.findByIdAndUpdate(userId, {
+      $set: { "security.refreshTokenHash": hash }
+    });
   }
 }
 

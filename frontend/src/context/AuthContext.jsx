@@ -75,8 +75,10 @@ export const AuthProvider = ({ children }) => {
       const response = await getMe();
       setUser(response.data);
       return response.data;
-    } catch {
-      setUser(null);
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        setUser(null);
+      }
       return null;
     }
   }, []);

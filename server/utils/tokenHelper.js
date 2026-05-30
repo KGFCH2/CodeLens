@@ -10,7 +10,10 @@ export const generateAccessToken = (payload) => {
 };
 
 export const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, {
+  // JWT_REFRESH_SECRET is a required env var — no fallback to JWT_SECRET.
+  // Using the same key for both tokens would allow a compromised access token
+  // to be used to forge a 30-day refresh token.
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d"
   });
 };
@@ -20,12 +23,20 @@ export const verifyToken = (token) => {
 };
 
 export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
 };
 
 // ── Cookie Helpers ────────────────────────────────────────────────────────────
 
 const isProd = process.env.NODE_ENV === "production";
+
+// Shared base options — single source of truth for all auth cookies.
+const cookieBaseOptions = {
+  httpOnly: true,
+  secure: isProd,   // HTTPS-only in production
+  sameSite: "Lax",  // Lax in all envs; change to Strict if no cross-site top-level GET flows
+  path: "/",
+};
 
 /**
  * Sets both access + refresh tokens as HttpOnly cookies on the response.
@@ -38,20 +49,25 @@ const isProd = process.env.NODE_ENV === "production";
 export const setAuthCookies = (res, accessToken, refreshToken) => {
   // Access token — short lived (15 min)
   res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: isProd,                 // HTTPS-only in prod
-    sameSite: isProd ? "Lax" : "Lax",
-    maxAge: 15 * 60 * 1000,        // 15 minutes in ms
-    path: "/",
+    ...cookieBaseOptions,
+    maxAge: 15 * 60 * 1000,           // 15 minutes in ms
   });
 
   // Refresh token — long lived (30 days)
   res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "Lax" : "Lax",
+    ...cookieBaseOptions,
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in ms
-    path: "/",
+  });
+};
+
+/**
+ * Sets only the access token cookie.
+ * Used during silent refresh (middleware) where only the access token is rotated.
+ */
+export const setAccessTokenCookie = (res, accessToken) => {
+  res.cookie("accessToken", accessToken, {
+    ...cookieBaseOptions,
+    maxAge: 15 * 60 * 1000, // 15 minutes in ms
   });
 };
 
@@ -59,7 +75,6 @@ export const setAuthCookies = (res, accessToken, refreshToken) => {
  * Clears both auth cookies (used on logout).
  */
 export const clearAuthCookies = (res) => {
-  const opts = { httpOnly: true, secure: isProd, sameSite: "Lax", path: "/" };
-  res.clearCookie("accessToken", opts);
-  res.clearCookie("refreshToken", opts);
+  res.clearCookie("accessToken", cookieBaseOptions);
+  res.clearCookie("refreshToken", cookieBaseOptions);
 };

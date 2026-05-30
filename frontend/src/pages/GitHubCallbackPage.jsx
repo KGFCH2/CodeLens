@@ -26,7 +26,7 @@ import { useAuth } from "../context/AuthContext";
 export default function GitHubCallbackPage() {
   const navigate                     = useNavigate();
   const [searchParams]               = useSearchParams();
-  const { login, refreshUser }       = useAuth();
+  const { refreshUser }              = useAuth();
   const [status, setStatus]          = useState("processing");
   const [errorMsg, setErrorMsg]      = useState("");
 
@@ -62,7 +62,8 @@ export default function GitHubCallbackPage() {
     };
 
     handleCallback();
-  }, []); // Run once on mount
+    // searchParams is stable but included in deps to satisfy the exhaustive-deps lint rule
+  }, [searchParams, refreshUser, navigate]); // Run once on mount, using stable hooks
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-6">

@@ -1,4 +1,4 @@
-import { verifyToken, verifyRefreshToken, generateAccessToken, setAuthCookies } from "../utils/tokenHelper.js";
+import { verifyToken, verifyRefreshToken, generateAccessToken, setAccessTokenCookie } from "../utils/tokenHelper.js";
 import User from "../models/User.js";
 import ApiError from "../utils/ApiError.js";
 
@@ -49,14 +49,9 @@ const authMiddleware = async (req, res, next) => {
             email: refreshDecoded.email,
             role: refreshDecoded.role
           });
-          // Set only the access token cookie (refresh stays)
-          res.cookie("accessToken", newAccessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "Lax",
-            maxAge: 15 * 60 * 1000,
-            path: "/",
-          });
+          // Set only the new access token cookie — refresh token stays unchanged.
+          // Cookie options are centralised in setAccessTokenCookie (tokenHelper.js).
+          setAccessTokenCookie(res, newAccessToken);
           decoded = { userId, email: refreshDecoded.email, role: refreshDecoded.role };
         } catch {
           throw new ApiError(401, "Session expired. Please log in again.");

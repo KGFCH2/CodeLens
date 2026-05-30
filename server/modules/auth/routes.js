@@ -51,9 +51,11 @@ router.get("/me", authMiddleware, AuthController.getMe);
 
 /**
  * POST /api/auth/logout
- * Clears auth cookies server-side.
+ * Clears auth cookies and revokes the stored refresh token.
+ * authMiddleware populates req.user for DB-side revocation.
+ * Cookies are cleared even if auth fails (best-effort).
  */
-router.post("/logout", AuthController.logout);
+router.post("/logout", authMiddleware, AuthController.logout);
 
 /**
  * POST /api/auth/refresh
