@@ -77,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       return response.data;
     } catch {
       setUser(null);
+      return null;
     }
   }, []);
 

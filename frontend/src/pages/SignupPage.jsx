@@ -90,6 +90,9 @@ export default function SignupPage() {
       // Response body: { success, message, data: { user } }
       const response = await authService.verifyOtp(email, otp);
       const userData = response.data?.user;
+      if (!userData) {
+        throw new Error('Verification succeeded but no user data returned.');
+      }
       login(userData);
       navigate("/dashboard", { replace: true });
     } catch (err) {

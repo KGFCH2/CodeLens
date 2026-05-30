@@ -79,8 +79,10 @@ class AuthService {
       throw new ApiError(401, "Invalid credentials");
     }
 
-    // GitHub-only accounts have a random password and cannot use email login
-    if (user.authProvider === "github" && !user.password) {
+    // GitHub-only accounts have a random password the user doesn't know.
+    // Checking authProvider alone is correct — they always have a hashed password,
+    // so !user.password would always be false and the guard would never fire.
+    if (user.authProvider === "github") {
       throw new ApiError(401, "This account was created with GitHub. Please use 'Continue with GitHub' to sign in.");
     }
 
