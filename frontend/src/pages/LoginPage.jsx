@@ -10,10 +10,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+  const [isEmailValid, setIsEmailValid] = useState(true);
 
   const auth           = useAuth();
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const isPasswordValid = password.length >= 6;
+
+  const validateEmail = (value) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value);
+  };
 
   // Handle GitHub OAuth callback redirect:
   // Backend sends: /login?authStatus=success#token=JWT
@@ -47,6 +55,17 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await authService.login(email, password);
@@ -73,8 +92,8 @@ export default function LoginPage() {
         </h2>
 
         {error && (
-          <div className="mb-8 border-4 border-black bg-black p-4">
-            <p className="text-sm font-black uppercase tracking-widest text-white">
+          <div className="mb-8 border-4 border-red-650 bg-red-50 p-4">
+            <p className="text-sm font-black uppercase tracking-widest text-red-650">
               {error}
             </p>
           </div>
@@ -100,7 +119,7 @@ export default function LoginPage() {
           </span>
         </div>
 
-        <form className="flex flex-col space-y-8" onSubmit={handleSubmit}>
+        <form className="flex flex-col space-y-8" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-col space-y-3">
             <label className="text-sm font-black uppercase tracking-widest text-black">
               Email
@@ -108,11 +127,20 @@ export default function LoginPage() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setIsEmailValid(validateEmail(e.target.value));
+              }}
+              aria-invalid={email.length > 0 && !isEmailValid}
               className="w-full p-5 border-4 border-black rounded-none text-black font-bold focus:outline-none focus:border-gray-500"
               placeholder="YOUR@EMAIL.COM"
               required
             />
+            {email && !isEmailValid && (
+              <p role="alert" className="text-xs font-black uppercase tracking-widest text-red-650 mt-1">
+                Please enter a valid email address
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col space-y-3">
@@ -123,10 +151,16 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={password.length > 0 && !isPasswordValid}
               className="w-full p-5 border-4 border-black rounded-none text-black font-bold focus:outline-none focus:border-gray-500"
               placeholder="••••••••"
               required
             />
+            {password && !isPasswordValid && (
+              <p role="alert" className="text-xs font-black uppercase tracking-widest text-red-650 mt-1">
+                Password must be at least 6 characters
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end">
